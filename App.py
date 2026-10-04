@@ -5,158 +5,189 @@ import urllib.parse
 import urllib.error
 import streamlit as st
 
-# Page Configuration
+# ------------------------------------------------------------------------------
+# Page Setup & Styling
+# ------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Helpreneur AI - Pune Real Estate Portal & Broker CRM",
+    page_title="Pune Real Estate AI Portal",
     page_icon="🏙️",
     layout="wide"
 )
 
+# Custom CSS for polished UI
+st.markdown("""
+<style>
+    .stButton>button {
+        border-radius: 8px;
+        font-weight: 600;
+    }
+    .flat-card {
+        border: 1px solid #e0e0e0;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+        background-color: #ffffff;
+    }
+    .badge {
+        background-color: #eef2ff;
+        color: #4f46e5;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # ------------------------------------------------------------------------------
-# 1. Pune Real Estate Inventory Database
+# Data Layer (Simulated Backend Database)
 # ------------------------------------------------------------------------------
-PUNE_INVENTORY = [
+PUNE_DATABASE = [
     {
         "id": "PUNE-BNR-101",
-        "title": "VTP Earth One - Luxury 3BHK",
+        "title": "VTP Earth One",
+        "developer": "VTP Realty",
         "location": "Baner",
         "bhk": "3BHK",
         "price_lakhs": 95,
+        "carpet_area": "1050 sq.ft.",
         "possession": "Ready to Move",
+        "amenities": ["Swimming Pool", "Clubhouse", "Gym", "EV Charging"],
         "image": "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=500&q=80"
     },
     {
-        "id": "PUNE-WKD-102",
-        "title": "Kolte Patil Life Republic - Smart 2BHK",
-        "location": "Wakad",
+        "id": "PUNE-BNR-102",
+        "title": "Kasturi Apostrophe",
+        "developer": "Kasturi Housing",
+        "location": "Baner",
         "bhk": "2BHK",
-        "price_lakhs": 62,
-        "possession": "Under Construction (Dec 2025)",
+        "price_lakhs": 78,
+        "carpet_area": "820 sq.ft.",
+        "possession": "Dec 2025",
+        "amenities": ["Rooftop Park", "Squash Court", "Smart Home"],
         "image": "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=500&q=80"
     },
     {
-        "id": "PUNE-KHD-103",
-        "title": "Gera World of Joy - Premium 3BHK",
-        "location": "Kharadi",
-        "bhk": "3BHK",
-        "price_lakhs": 110,
+        "id": "PUNE-WKD-103",
+        "title": "Kolte Patil Life Republic",
+        "developer": "Kolte Patil",
+        "location": "Wakad",
+        "bhk": "2BHK",
+        "price_lakhs": 62,
+        "carpet_area": "740 sq.ft.",
         "possession": "Ready to Move",
-        "image": "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=500&q=80"
+        "amenities": ["Township Amenities", "School", "Shopping Plaza"],
+        "image": "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=500&q=80"
     },
     {
-        "id": "PUNE-HNJ-104",
-        "title": "Godrej Elements - Affordable 1BHK",
-        "location": "Hinjewadi",
+        "id": "PUNE-WKD-104",
+        "title": "Mahindra Happinest",
+        "developer": "Mahindra Lifespaces",
+        "location": "Wakad",
         "bhk": "1BHK",
         "price_lakhs": 42,
+        "carpet_area": "480 sq.ft.",
         "possession": "Ready to Move",
+        "amenities": ["Solar Power", "Jogging Track", "24x7 Security"],
         "image": "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=500&q=80"
     },
     {
-        "id": "PUNE-KTR-105",
-        "title": "Sobha Nesara - Horizon 4BHK Villa/Apartment",
-        "location": "Kothrud",
+        "id": "PUNE-KHD-105",
+        "title": "Gera World of Joy",
+        "developer": "Gera Developments",
+        "location": "Kharadi",
+        "bhk": "3BHK",
+        "price_lakhs": 115,
+        "carpet_area": "1120 sq.ft.",
+        "possession": "June 2026",
+        "amenities": ["Child Centric Homes", "Badminton Court", "Creche"],
+        "image": "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=500&q=80"
+    },
+    {
+        "id": "PUNE-KHD-106",
+        "title": "Panchshil Towers",
+        "developer": "Panchshil Realty",
+        "location": "Kharadi",
         "bhk": "4BHK",
-        "price_lakhs": 220,
-        "possession": "Under Construction",
+        "price_lakhs": 240,
+        "carpet_area": "2200 sq.ft.",
+        "possession": "Ready to Move",
+        "amenities": ["Private Elevator", "Infinity Pool", "Concierge"],
         "image": "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=500&q=80"
     },
     {
-        "id": "PUNE-VMN-106",
-        "title": "Lunkad Sky Vie - Executive 2BHK",
-        "location": "Viman Nagar",
+        "id": "PUNE-HNJ-107",
+        "title": "Godrej Elements",
+        "developer": "Godrej Properties",
+        "location": "Hinjewadi",
         "bhk": "2BHK",
-        "price_lakhs": 88,
+        "price_lakhs": 68,
+        "carpet_area": "780 sq.ft.",
         "possession": "Ready to Move",
+        "amenities": ["Proximity to IT Park", "Gym", "Co-working Space"],
         "image": "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=500&q=80"
+    },
+    {
+        "id": "PUNE-KTR-108",
+        "title": "Sobha Nesara",
+        "developer": "Sobha Limited",
+        "location": "Kothrud",
+        "bhk": "3BHK",
+        "price_lakhs": 165,
+        "carpet_area": "1350 sq.ft.",
+        "possession": "Dec 2026",
+        "amenities": ["Hill Views", "Clubhouse", "Tennis Court"],
+        "image": "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=500&q=80"
     }
 ]
 
-# Initialize Session State Database
-if "lead_db" not in st.session_state:
-    st.session_state["lead_db"] = [
+# Initialize Session Persistence
+if "inquiries_db" not in st.session_state:
+    st.session_state["inquiries_db"] = [
         {
-            "id": "LEAD-101",
-            "name": "Vikram Malhotra",
-            "phone": "+91 98765 43210",
-            "flat_applied": "VTP Earth One - Luxury 3BHK (Baner)",
-            "budget": "₹95 Lakhs",
-            "location": "Baner",
-            "source": "Website Portal",
-            "score": 95,
+            "id": "INQ-2026-01",
+            "name": "Aniket Shinde",
+            "phone": "+91 98230 11223",
+            "flat": "VTP Earth One (Baner)",
+            "offered_budget": "₹95 Lakhs",
+            "loan_status": "Pre-Approved",
+            "visit_pref": "Looking to visit this Saturday morning around 11 AM.",
+            "score": 92,
             "category": "Hot",
-            "intent": "High Intent Purchase - Direct Flat Application",
-            "reasons": ["Applied for specific listed flat", "Pre-approved loan ready"],
-            "action": "Schedule site visit for Baner flat within 24 hrs.",
-            "draft": "Hello Vikram! Thank you for applying for VTP Earth One 3BHK in Baner. We have your ₹95L budget profile logged. When can we arrange your private site visit?",
-            "status": "Pending",
-            "best_time": "Evening (5:00 PM - 7:00 PM)",
-            "best_channel": "WhatsApp"
+            "intent": "High Intent Buyer — Site Visit Requested",
+            "suggested_reply": "Hello Aniket! Thank you for inquiring about VTP Earth One in Baner. We have scheduled your site visit for Saturday at 11 AM. Our relationship manager will meet you at the site.",
+            "owner_status": "New Inquiry"
         }
     ]
 
 # ------------------------------------------------------------------------------
-# 2. Logic Engine
+# Backend Microservice: Gemini AI Inquiry Processor
 # ------------------------------------------------------------------------------
 api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
 
-def evaluate_lead_locally(flat_title: str, budget: int, user_msg: str, loan_status: str) -> dict:
-    text_lower = user_msg.lower()
-    
-    if budget >= 60 or loan_status == "Pre-Approved" or "ready" in text_lower or "visit" in text_lower:
-        return {
-            "score": 90,
-            "category": "Hot",
-            "intent": f"Direct Flat Interest: {flat_title}",
-            "reasons": [f"Target budget ₹{budget} Lakhs matches listing", f"Loan Status: {loan_status}"],
-            "action": "Immediate phone call and site visit booking.",
-            "draft": f"Hello! Thanks for applying for {flat_title}. I have noted your target budget of ₹{budget} Lakhs. Let's schedule a site visit this weekend!",
-            "best_time": "Evening (5:00 PM - 7:00 PM)",
-            "best_channel": "WhatsApp"
-        }
-    elif budget >= 35:
-        return {
-            "score": 60,
-            "category": "Warm",
-            "intent": f"General Flat Application: {flat_title}",
-            "reasons": ["Valid budget parameter", "Follow-up required for timeline"],
-            "action": "Send floor plans and brochure on WhatsApp.",
-            "draft": f"Hello! Thanks for your interest in {flat_title}. I've attached the detailed floor plan and brochure. Let me know if you have any questions!",
-            "best_time": "Afternoon (2:00 PM - 4:00 PM)",
-            "best_channel": "WhatsApp"
-        }
-    else:
-        return {
-            "score": 25,
-            "category": "Cold",
-            "intent": "Budget Below Available Inventory",
-            "reasons": ["Budget lower than property baseline"],
-            "action": "Redirect to budget rental/PG options.",
-            "draft": "Hello! Thank you for reaching out. Our current property listings start from ₹40 Lakhs. Let us know if you would like options in alternative locations!",
-            "best_time": "Morning (10:00 AM - 12:00 PM)",
-            "best_channel": "Email"
-        }
-
-def analyze_lead(flat_title: str, budget: int, user_msg: str, loan_status: str) -> dict:
+def process_inquiry_with_ai(flat_title: str, user_budget: int, loan_status: str, message: str) -> dict:
     if not api_key:
-        return evaluate_lead_locally(flat_title, budget, user_msg, loan_status)
+        # Local rule-based fallback microservice
+        is_high = user_budget >= 60 or loan_status == "Pre-Approved"
+        return {
+            "score": 88 if is_high else 55,
+            "category": "Hot" if is_high else "Warm",
+            "intent": f"Site Visit Inquiry for {flat_title}",
+            "suggested_reply": f"Hello! Thanks for your interest in {flat_title}. We received your inquiry with budget ₹{user_budget} Lakhs ({loan_status}). Our team will arrange a site tour shortly."
+        }
 
     prompt = f"""
-    Analyze this real estate lead application for property '{flat_title}' in Pune:
-    - Budget: ₹{budget} Lakhs
+    Analyze this real estate inquiry for project '{flat_title}' in Pune:
+    - User Offered Budget: ₹{user_budget} Lakhs
     - Loan Status: {loan_status}
-    - Client Message: "{user_msg}"
+    - Message: "{message}"
 
-    Respond STRICTLY in JSON format:
+    Output JSON strictly in this structure:
     {{
         "score": <0-100 integer>,
         "category": "<Hot|Warm|Cold>",
-        "intent": "<short extracted intent>",
-        "reasons": ["<reason1>", "<reason2>"],
-        "action": "<recommended next action>",
-        "draft": "<whatsapp draft response>",
-        "best_time": "<predicted best time>",
-        "best_channel": "<WhatsApp|Phone Call|Email>"
+        "intent": "<1-sentence intent summary>",
+        "suggested_reply": "<professional owner response to user>"
     }}
     """
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
@@ -166,177 +197,167 @@ def analyze_lead(flat_title: str, budget: int, user_msg: str, loan_status: str) 
     try:
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=data, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            res_json = json.loads(resp.read().decode("utf-8"))
-            return json.loads(res_json["candidates"][0]["content"]["parts"][0]["text"])
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            res = json.loads(resp.read().decode("utf-8"))
+            return json.loads(res["candidates"][0]["content"]["parts"][0]["text"])
     except Exception:
-        return evaluate_lead_locally(flat_title, budget, user_msg, loan_status)
+        return {
+            "score": 80,
+            "category": "Hot",
+            "intent": "Inquiry submitted successfully",
+            "suggested_reply": f"Hello! Thank you for inquiring about {flat_title}. We will contact you soon."
+        }
 
 # ------------------------------------------------------------------------------
-# 3. Main Navigation
+# UI Layout
 # ------------------------------------------------------------------------------
-st.title("🏙️ Helpreneur AI — Pune Property Portal & Lead CRM")
+st.title("🏙️ Pune Real Estate Portal & Owner Dashboard")
 
-tab1, tab2, tab3 = st.tabs([
-    "🏡 1. Browse Pune Flats & Apply", 
-    "📊 2. Broker CRM Pipeline", 
-    "📦 3. Property Inventory DB"
+tab_buyer, tab_owner = st.tabs([
+    "🔍 Find Flats & Submit Inquiry", 
+    "📬 Owner & Broker Inbox (Respond to Leads)"
 ])
 
 # ------------------------------------------------------------------------------
-# TAB 1: Pune Flat Finder & Application
+# TAB 1: Buyer Search & Application Flow
 # ------------------------------------------------------------------------------
-with tab1:
-    st.subheader("Find Your Flat in Pune & Apply Directly")
+with tab_buyer:
+    st.subheader("Step 1: Set Your Requirements")
     
-    # Filter Controls (Area Selection + Budget Slider)
-    col_a, col_b, col_c = st.columns([1, 1, 1])
-    
-    with col_a:
-        selected_area = st.multiselect(
-            "📍 Select Flat Area in Pune:",
-            ["Baner", "Wakad", "Kharadi", "Hinjewadi", "Kothrud", "Viman Nagar"],
-            default=["Baner", "Wakad", "Kharadi", "Hinjewadi", "Kothrud", "Viman Nagar"]
-        )
-    with col_b:
-        selected_bhk = st.multiselect(
-            "🛏️ Property Configuration:",
-            ["1BHK", "2BHK", "3BHK", "4BHK"],
-            default=["1BHK", "2BHK", "3BHK", "4BHK"]
-        )
-    with col_c:
-        max_budget = st.slider("💰 Set Max Budget (in ₹ Lakhs):", min_value=30, max_value=250, value=150, step=5)
+    with st.container():
+        c1, c2, c3 = st.columns([1.5, 1.5, 1])
+        
+        all_locations = sorted(list(set(item["location"] for item in PUNE_DATABASE)))
+        all_bhk = ["1BHK", "2BHK", "3BHK", "4BHK"]
+        
+        with c1:
+            req_areas = st.multiselect("📍 Desired Area(s):", options=all_locations, default=["Baner", "Kharadi"])
+        with c2:
+            req_bhk = st.multiselect("🛏️ Configuration:", options=all_bhk, default=["2BHK", "3BHK"])
+        with c3:
+            max_budget = st.slider("💰 Max Budget (₹ Lakhs):", min_value=30, max_value=250, value=120, step=5)
+            
+        search_clicked = st.button("🔍 Search Available Flats", type="primary", use_container_width=True)
+
+    if "has_searched" not in st.session_state:
+        st.session_state["has_searched"] = False
+
+    if search_clicked:
+        st.session_state["has_searched"] = True
 
     st.markdown("---")
-    
-    # Filter inventory based on controls
-    filtered_flats = [
-        f for f in PUNE_INVENTORY 
-        if f["location"] in selected_area 
-        and f["bhk"] in selected_bhk 
-        and f["price_lakhs"] <= max_budget
-    ]
-    
-    st.markdown(f"### Available Listings ({len(filtered_flats)} flats match your filter)")
-    
-    if not filtered_flats:
-        st.warning("No flats match your exact budget and location criteria. Try increasing the budget slider!")
-    else:
-        for flat in filtered_flats:
-            with st.container():
-                fc1, fc2, fc3 = st.columns([1, 2, 1])
+
+    # Step 2: Show flat inventory only after search action
+    if st.session_state["has_searched"]:
+        matched_flats = [
+            f for f in PUNE_DATABASE
+            if f["location"] in req_areas
+            and f["bhk"] in req_bhk
+            and f["price_lakhs"] <= max_budget
+        ]
+        
+        st.subheader(f"Step 2: Available Options ({len(matched_flats)} found)")
+        
+        if not matched_flats:
+            st.info("No properties match your current filters. Try increasing your max budget or adding more localities.")
+        else:
+            for flat in matched_flats:
+                col_img, col_info, col_act = st.columns([1, 2, 1])
                 
-                with fc1:
+                with col_img:
                     st.image(flat["image"], use_column_width=True)
-                with fc2:
-                    st.markdown(f"### {flat['title']}")
-                    st.markdown(f"📍 **Location:** {flat['location']} | 🛏️ **Type:** {flat['bhk']}")
-                    st.markdown(f"💰 **Price:** **₹{flat['price_lakhs']} Lakhs** | 🔑 **Status:** {flat['possession']}")
-                with fc3:
+                with col_info:
+                    st.markdown(f"### {flat['title']} `{flat['developer']}`")
+                    st.markdown(f"📍 **{flat['location']}** | 🛏️ **{flat['bhk']}** ({flat['carpet_area']})")
+                    st.markdown(f"💵 **Price: ₹{flat['price_lakhs']} Lakhs** | 🔑 **Status: {flat['possession']}**")
+                    st.caption("✨ " + " • ".join(flat["amenities"]))
+                with col_act:
                     st.write("")
                     st.write("")
-                    if st.button(f"📝 Apply for Flat", key=f"apply_{flat['id']}"):
-                        st.session_state["selected_flat"] = flat
+                    if st.button(f"📝 Apply Now", key=f"btn_apply_{flat['id']}"):
+                        st.session_state["active_flat"] = flat
 
-    # Modal Application Form when a flat is selected
-    if "selected_flat" in st.session_state and st.session_state["selected_flat"]:
-        s_flat = st.session_state["selected_flat"]
-        st.markdown("---")
-        st.success(f"📋 **Submit Interested Lead Form for: {s_flat['title']} ({s_flat['location']})**")
-        
-        with st.form("application_form"):
-            ac1, ac2 = st.columns(2)
-            with ac1:
-                applicant_name = st.text_input("Full Name", placeholder="e.g. Rahul Deshmukh")
-                applicant_phone = st.text_input("WhatsApp / Phone Number", placeholder="+91 9876543210")
-                user_budget = st.number_input("Your Specific Budget (in ₹ Lakhs)", value=s_flat["price_lakhs"])
-            with ac2:
-                loan_req = st.selectbox("Home Loan Requirement", ["Loan Required & Ready", "Pre-Approved Loan", "Self-Funded / Cash", "Loan Required"])
-                client_msg = st.text_area("Additional Requirements or Site Visit Request", placeholder="e.g. Want to schedule site visit this Sunday...")
+        # Application Form Drawer
+        if "active_flat" in st.session_state and st.session_state["active_flat"]:
+            a_flat = st.session_state["active_flat"]
+            st.markdown("---")
+            st.success(f"📋 **Submit Official Inquiry for {a_flat['title']} ({a_flat['location']})**")
             
-            submit_app = st.form_submit_button("🚀 Submit Application to Broker")
+            with st.form("inquiry_form"):
+                ic1, ic2 = st.columns(2)
+                with ic1:
+                    b_name = st.text_input("Full Name", placeholder="e.g. Ramesh Kulkarni")
+                    b_phone = st.text_input("WhatsApp / Contact Number", placeholder="+91 98220 12345")
+                    b_budget = st.number_input("Offered / Target Budget (₹ Lakhs)", value=a_flat["price_lakhs"])
+                with ic2:
+                    b_loan = st.selectbox("Funding / Loan Status", ["Pre-Approved Loan", "Loan Needed", "Self-Funded"])
+                    b_msg = st.text_area("Site Visit Request & Notes", placeholder="e.g. Looking to visit this Sunday morning.")
+                
+                sub_btn = st.form_submit_button("🚀 Submit Inquiry to Owner/Broker")
+                
+                if sub_btn:
+                    if b_name and b_phone:
+                        ai_eval = process_inquiry_with_ai(a_flat["title"], b_budget, b_loan, b_msg)
+                        
+                        new_inquiry = {
+                            "id": f"INQ-2026-{len(st.session_state['inquiries_db'])+1:02d}",
+                            "name": b_name,
+                            "phone": b_phone,
+                            "flat": f"{a_flat['title']} ({a_flat['location']})",
+                            "offered_budget": f"₹{b_budget} Lakhs",
+                            "loan_status": b_loan,
+                            "visit_pref": b_msg,
+                            "score": ai_eval.get("score", 85),
+                            "category": ai_eval.get("category", "Hot"),
+                            "intent": ai_eval.get("intent", f"Inquiry for {a_flat['title']}"),
+                            "suggested_reply": ai_eval.get("suggested_reply", "Thank you for reaching out."),
+                            "owner_status": "New Inquiry"
+                        }
+                        
+                        st.session_state["inquiries_db"].insert(0, new_inquiry)
+                        st.session_state["active_flat"] = None
+                        st.balloons()
+                        st.success("✅ Inquiry submitted successfully! The property owner will review and respond in Tab 2.")
+                    else:
+                        st.error("Please fill in your Name and Phone Number.")
+    else:
+        st.info("👆 Please select your area and budget preferences above and click **Search Available Flats**.")
+
+# ------------------------------------------------------------------------------
+# TAB 2: Property Owner / Broker Response Inbox
+# ------------------------------------------------------------------------------
+with tab_owner:
+    st.subheader("📬 Property Owner Response Center")
+    st.caption("Review incoming buyer inquiries, edit AI-generated responses, and update deal statuses.")
+    
+    inquiries = st.session_state["inquiries_db"]
+    
+    if not inquiries:
+        st.info("No incoming inquiries yet.")
+    else:
+        for idx, inq in enumerate(inquiries):
+            badge_color = "🔴" if inq["category"] == "Hot" else ("🟡" if inq["category"] == "Warm" else "⚪")
             
-            if submit_app:
-                if applicant_name and applicant_phone:
-                    res = analyze_lead(s_flat["title"], user_budget, client_msg, loan_req)
+            with st.expander(f"{badge_color} [{inq['score']}/100 Score] {inq['name']} — Interested in {inq['flat']} | Status: {inq['owner_status']}", expanded=(idx==0)):
+                rc1, rc2 = st.columns([1, 1])
+                
+                with rc1:
+                    st.markdown(f"**Buyer Contact:** {inq['name']} (`{inq['phone']}`)")
+                    st.markdown(f"**Target Flat:** `{inq['flat']}`")
+                    st.markdown(f"**Offered Budget:** `{inq['offered_budget']}` | **Loan Status:** `{inq['loan_status']}`")
+                    st.markdown(f"**Buyer Notes:** _{inq['visit_pref'] or 'None provided'}_\n")
+                    st.info(f"🧠 **AI Intent Tag:** {inq['intent']}")
+                
+                with rc2:
+                    st.markdown("**Compose Response to Buyer:**")
+                    reply_text = st.text_area("Response Message:", value=inq["suggested_reply"], height=100, key=f"reply_text_{inq['id']}")
                     
-                    new_lead = {
-                        "id": f"LEAD-{101 + len(st.session_state['lead_db'])}",
-                        "name": applicant_name,
-                        "phone": applicant_phone,
-                        "flat_applied": f"{s_flat['title']} ({s_flat['location']})",
-                        "budget": f"₹{user_budget} Lakhs",
-                        "location": s_flat["location"],
-                        "source": "Website Portal",
-                        "score": res.get("score", 85),
-                        "category": res.get("category", "Hot"),
-                        "intent": res.get("intent", f"Interest in {s_flat['title']}"),
-                        "reasons": res.get("reasons", []),
-                        "action": res.get("action", "Schedule site visit"),
-                        "draft": res.get("draft", "Thank you for applying."),
-                        "status": "Pending",
-                        "best_time": res.get("best_time", "Evening (5-7 PM)"),
-                        "best_channel": res.get("best_channel", "WhatsApp")
-                    }
-                    st.session_state["lead_db"].insert(0, new_lead)
-                    st.session_state["selected_flat"] = None
-                    st.balloons()
-                    st.success("✅ Application Submitted! Our Pune broker will contact you on WhatsApp shortly.")
-                else:
-                    st.error("Please enter your name and phone number.")
-
-# ------------------------------------------------------------------------------
-# TAB 2: Broker CRM Dashboard
-# ------------------------------------------------------------------------------
-with tab2:
-    st.subheader("👔 Broker Portal: Live Pune Lead Applications")
-    
-    total_leads = len(st.session_state["lead_db"])
-    hot_leads = sum(1 for item in st.session_state["lead_db"] if item["category"] == "Hot")
-    warm_leads = sum(1 for item in st.session_state["lead_db"] if item["category"] == "Warm")
-    cold_leads = sum(1 for item in st.session_state["lead_db"] if item["category"] == "Cold")
-    
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total Applications", total_leads)
-    m2.metric("🔥 Hot Leads", hot_leads)
-    m3.metric("🌤️ Warm Leads", warm_leads)
-    m4.metric("❄️ Cold Leads", cold_leads)
-    
-    st.markdown("---")
-    
-    for idx, lead in enumerate(st.session_state["lead_db"]):
-        cat = lead["category"]
-        badge = "🔴 HOT" if cat == "Hot" else ("🟡 WARM" if cat == "Warm" else "⚪ COLD")
-        
-        with st.expander(f"{badge} [{lead['score']}/100] {lead['name']} | Flat: {lead.get('flat_applied', 'General Inquiry')} | Status: {lead['status']}", expanded=(idx==0)):
-            c1, c2 = st.columns([1, 1])
-            with c1:
-                st.markdown(f"**Applied Flat:** `{lead.get('flat_applied', 'N/A')}`")
-                st.markdown(f"**Client Budget:** `{lead.get('budget', 'N/A')}` | **Location:** `{lead.get('location', 'Pune')}`")
-                st.markdown(f"**Extracted AI Intent:** {lead['intent']}")
-                st.markdown(f"**AI Qualification Score:** `{lead['score']}/100`")
-                st.markdown(f"**Recommended Action:** {lead['action']}")
-                
-                st.info(f"💡 **Predictive Best Follow-Up Window:**\n- **Time:** {lead['best_time']}\n- **Channel:** {lead['best_channel']}")
-            
-            with c2:
-                st.markdown("**Auto-Generated WhatsApp Reply:**")
-                draft_msg = st.text_area("Ready to send:", value=lead["draft"], height=100, key=f"draft_{lead['id']}")
-                
-                # Status tracking
-                lead["status"] = st.selectbox("Update Status:", ["Pending", "Followed Up", "Converted", "Closed"], index=["Pending", "Followed Up", "Converted", "Closed"].index(lead["status"]), key=f"st_{lead['id']}")
-                
-                raw_phone = lead["phone"].replace("+", "").replace(" ", "").replace("-", "")
-                if not raw_phone.isdigit():
-                    raw_phone = "919876543210"
-                encoded_msg = urllib.parse.quote(draft_msg)
-                whatsapp_url = f"https://wa.me/{raw_phone}?text={encoded_msg}"
-                
-                st.link_button(f"📲 Contact {lead['name']} on WhatsApp", whatsapp_url)
-
-# ------------------------------------------------------------------------------
-# TAB 3: Property Inventory Database
-# ------------------------------------------------------------------------------
-with tab3:
-    st.subheader("📦 Broker Property Inventory Database (Pune)")
-    st.dataframe(PUNE_INVENTORY, use_container_width=True)
+                    status_opts = ["New Inquiry", "Contacted / In Discussion", "Site Visit Scheduled", "Deal Closed"]
+                    inq["owner_status"] = st.selectbox("Update Deal Status:", status_opts, index=status_opts.index(inq["owner_status"]), key=f"status_sel_{inq['id']}")
+                    
+                    # Direct WhatsApp link for owner response
+                    clean_phone = inq["phone"].replace("+", "").replace(" ", "").replace("-", "")
+                    encoded_msg = urllib.parse.quote(reply_text)
+                    wa_link = f"https://wa.me/{clean_phone}?text={encoded_msg}"
+                    
+                    st.link_button(f"📲 Send Response to {inq['name']} via WhatsApp", wa_link)
