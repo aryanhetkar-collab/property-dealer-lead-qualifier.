@@ -1,7 +1,8 @@
 import os
 import json
+import urllib.request
+import urllib.error
 import streamlit as st
-import google.generativeai as genai
 
 # Page Configuration
 st.set_page_config(
@@ -21,21 +22,16 @@ manual_key = st.sidebar.text_input("Gemini API Key", value="", type="password")
 if manual_key:
     api_key = manual_key
 
-if api_key:
-    genai.configure(api_key=api_key)
-
 # ------------------------------------------------------------------------------
-# 2. Heuristic Local Fallback Engine
+# 2. Local Fallback Engine
 # ------------------------------------------------------------------------------
 def evaluate_lead_locally(text: str) -> dict:
-    """Fallback logic when Gemini API key is missing or unavailable."""
+    """Fallback logic when API key is missing or request fails."""
     text_lower = text.lower()
     
-    # Specific keywords for classification
     cold_keywords = ["2 days", "500", "cheap", "short term", "room on rent", "hostel", "pg", "rent"]
     hot_keywords = ["buy", "3bhk", "2bhk", "crore", "lakhs", "site visit", "pre-approved", "loan", "ready buyer"]
 
-    # Cold Lead Logic
     if any(kw in text_lower for kw in cold_keywords) and not any(kw in text_lower for kw in ["buy", "crore", "lakhs"]):
         return {
             "score": 20,
@@ -47,8 +43,6 @@ def evaluate_lead_locally(text: str) -> dict:
             "action": "Politely decline or redirect to short-stay booking platforms.",
             "draft": "Hello! Thanks for reaching out. We specialize in long-term sales and leases. For daily room rentals, we recommend checking hospitality booking apps!"
         }
-    
-    # Hot Lead Logic
     elif any(kw in text_lower for kw in hot_keywords):
         return {
             "score": 90,
@@ -60,8 +54,6 @@ def evaluate_lead_locally(text: str) -> dict:
             "action": "Schedule immediate phone call & book site visit within 2 hours.",
             "draft": "Hello! Thank you for reaching out. I'd be delighted to assist you with your property search and schedule a site visit this Sunday. When would be a good time to connect?"
         }
-    
-    # Warm Lead Logic (Default)
     else:
         return {
             "score": 55,
@@ -75,7 +67,7 @@ def evaluate_lead_locally(text: str) -> dict:
         }
 
 # ------------------------------------------------------------------------------
-# 3. AI Lead Analysis Engine (Gemini)
+# 3. Direct Gemini API Request (No External SDK Required)
 # ------------------------------------------------------------------------------
 def analyze_lead_with_gemini(inquiry: str) -> dict:
     if not api_key:
@@ -96,20 +88,27 @@ def analyze_lead_with_gemini(inquiry: str) -> dict:
     }}
     """
 
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"response_mime_type": "application/json"}
+    }
+
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content(
-            prompt,
-            generation_config={"response_mime_type": "application/json"}
-        )
-        return json.loads(response.text)
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as response:
+            result_json = json.loads(response.read().decode("utf-8"))
+            text_response = result_json["candidates"][0]["content"]["parts"][0]["text"]
+            return json.loads(text_response)
     except Exception as e:
         result = evaluate_lead_locally(inquiry)
         result["api_error"] = str(e)
         return result
 
 # ------------------------------------------------------------------------------
-# 4. Streamlit UI (With State Syncing)
+# 4. Streamlit UI
 # ------------------------------------------------------------------------------
 st.title("🏠 Property Dealer AI Lead Qualifier")
 st.caption("Automated Lead Triage & Response System for Real Estate Agents & Brokers")
