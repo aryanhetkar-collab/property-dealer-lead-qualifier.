@@ -1,151 +1,174 @@
-import streamlit as st
-from google import genai
-from google.genai import types
-from pydantic import BaseModel, Field
+import os
 import json
-import time
+import streamlit as st
+import google.generativeai as genai
 
-# --- Page Config ---
+# Page Configuration
 st.set_page_config(
     page_title="Property Dealer AI Lead Qualifier",
     page_icon="🏠",
     layout="wide"
 )
 
+# ------------------------------------------------------------------------------
+# 1. API Key Handling
+# ------------------------------------------------------------------------------
+api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
+
+st.sidebar.title("Settings ⚙️")
+manual_key = st.sidebar.text_input("Gemini API Key", value="", type="password")
+
+if manual_key:
+    api_key = manual_key
+
+if api_key:
+    genai.configure(api_key=api_key)
+
+# ------------------------------------------------------------------------------
+# 2. Heuristic Local Fallback Engine
+# ------------------------------------------------------------------------------
+def evaluate_lead_locally(text: str) -> dict:
+    """Fallback logic when Gemini API key is missing or unavailable."""
+    text_lower = text.lower()
+    
+    # Specific keywords for classification
+    cold_keywords = ["2 days", "500", "cheap", "short term", "room on rent", "hostel", "pg", "rent"]
+    hot_keywords = ["buy", "3bhk", "2bhk", "crore", "lakhs", "site visit", "pre-approved", "loan", "ready buyer"]
+
+    # Cold Lead Logic
+    if any(kw in text_lower for kw in cold_keywords) and not any(kw in text_lower for kw in ["buy", "crore", "lakhs"]):
+        return {
+            "score": 20,
+            "category": "Cold",
+            "reasons": [
+                "Short-term rental or micro-budget request",
+                "Unsuited for long-term real estate brokerage services"
+            ],
+            "action": "Politely decline or redirect to short-stay booking platforms.",
+            "draft": "Hello! Thanks for reaching out. We specialize in long-term sales and leases. For daily room rentals, we recommend checking hospitality booking apps!"
+        }
+    
+    # Hot Lead Logic
+    elif any(kw in text_lower for kw in hot_keywords):
+        return {
+            "score": 90,
+            "category": "Hot",
+            "reasons": [
+                "High purchase/investment intent detected",
+                "Specific budget and site visit request"
+            ],
+            "action": "Schedule immediate phone call & book site visit within 2 hours.",
+            "draft": "Hello! Thank you for reaching out. I'd be delighted to assist you with your property search and schedule a site visit this Sunday. When would be a good time to connect?"
+        }
+    
+    # Warm Lead Logic (Default)
+    else:
+        return {
+            "score": 55,
+            "category": "Warm",
+            "reasons": [
+                "General inquiry about property listings",
+                "Budget and timeline require further clarification"
+            ],
+            "action": "Send digital property catalog on WhatsApp and follow up in 24 hours.",
+            "draft": "Hello! Thanks for reaching out. I've shared our latest property catalog. Please let me know your preferred location and budget so I can share matching options!"
+        }
+
+# ------------------------------------------------------------------------------
+# 3. AI Lead Analysis Engine (Gemini)
+# ------------------------------------------------------------------------------
+def analyze_lead_with_gemini(inquiry: str) -> dict:
+    if not api_key:
+        return evaluate_lead_locally(inquiry)
+
+    prompt = f"""
+    You are an expert real estate AI lead qualifier. Analyze the following client inquiry:
+    
+    Inquiry: "{inquiry}"
+    
+    Respond STRICTLY with a valid JSON object matching this structure:
+    {{
+        "score": <integer from 0 to 100>,
+        "category": "<Hot|Warm|Cold>",
+        "reasons": ["<reason 1>", "<reason 2>"],
+        "action": "<recommended action for real estate broker>",
+        "draft": "<short follow-up message ready to send on WhatsApp/email>"
+    }}
+    """
+
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(
+            prompt,
+            generation_config={"response_mime_type": "application/json"}
+        )
+        return json.loads(response.text)
+    except Exception as e:
+        result = evaluate_lead_locally(inquiry)
+        result["api_error"] = str(e)
+        return result
+
+# ------------------------------------------------------------------------------
+# 4. Streamlit UI (With State Syncing)
+# ------------------------------------------------------------------------------
 st.title("🏠 Property Dealer AI Lead Qualifier")
 st.caption("Automated Lead Triage & Response System for Real Estate Agents & Brokers")
 
-# --- Pydantic Data Contract ---
-class LeadEvaluation(BaseModel):
-    lead_score: int = Field(description="Score from 0 to 100 based on buyer/seller readiness and budget.")
-    category: str = Field(description="Lead tier: 'Hot', 'Warm', or 'Cold'.")
-    key_reasons: list[str] = Field(description="3-4 concise bullet points explaining the score.")
-    dealer_action: str = Field(description="Immediate action for the property dealer (e.g., 'Schedule site visit within 1 hour').")
-    draft_response: str = Field(description="A professional email/WhatsApp message draft tailored to the client.")
-
-# --- Local Heuristic Fallback Engine ---
-def local_heuristic_fallback(text: str) -> LeadEvaluation:
-    text_lower = text.lower()
-    
-    # Keywords indicating high intent / Indian real estate terminology
-    hot_keywords = ["buy", "purchase", "site visit", "pre-approved", "ready to close", "cash buyer", "booking", "3bhk", "2bhk", "plot", "flat", "lakh", "lakhs", "crore", "cr"]
-    cold_keywords = ["rent for 1 day", "cheap rent", "free consultation", "jobs", "hiring", "spam", "daily rent"]
-    
-    if any(k in text_lower for k in cold_keywords):
-        return LeadEvaluation(
-            lead_score=20,
-            category="Cold",
-            key_reasons=["Low-budget rental or non-buyer inquiry", "Out of primary property sales scope"],
-            dealer_action="Auto-reply with FAQ link or standard rental brochure.",
-            draft_response="Namaste! Thank you for reaching out. We specialize in property sales and long-term deals. For short-term rental queries, please visit our website FAQ."
-        )
-    elif any(k in text_lower for k in hot_keywords):
-        return LeadEvaluation(
-            lead_score=85,
-            category="Hot",
-            key_reasons=["High purchase intent detected", "Explicit property interest or site visit request with budget"],
-            dealer_action="Call client immediately to schedule a property site visit.",
-            draft_response="Namaste! Thank you for contacting us regarding our property listings. I would love to arrange a site visit for you this weekend. When are you available for a quick call?"
-        )
-        
-    return LeadEvaluation(
-        lead_score=55,
-        category="Warm",
-        key_reasons=["General inquiry about listings", "Budget and timeline require further clarification"],
-        dealer_action="Send digital property catalog on WhatsApp and follow up in 24 hours.",
-        draft_response="Hello! Thanks for reaching out. I've shared our latest property catalog. Please let me know your preferred location and budget (in Lakhs/Crores) so I can share matching options!"
-    )
-
-# --- Sidebar API Key Input ---
-with st.sidebar:
-    st.header("Settings")
-    api_key = st.text_input("Gemini API Key", type="password")
-
-# --- UI Input Options (INR Values) ---
-sample_inquiries = {
-    "Select a pre-loaded property inquiry...": "",
+scenarios = {
     "🔥 Hot Lead (Ready Buyer & Site Visit)": "Hi, I am looking to buy a 3BHK flat in prime location. Budget is around ₹85 Lakhs with pre-approved bank loan ready. I want to schedule a site visit this Sunday.",
-    "🌤️ Warm Lead (Exploring Options)": "Hello, my family is looking for commercial plots or residential flats for investment in the next quarter. Budget is ₹1.5 Crore. Can you send over available options and pricing details?",
+    "🌤️ Warm Lead (General Catalog Request)": "Hi, can you share available 2BHK listings near HSR Layout along with price details?",
     "❄️ Cold Lead (Short Rental / Low Intent)": "Hi, looking for a room on rent for 2 days under ₹500/night."
 }
 
-selected_sample = st.selectbox("Choose a sample scenario or enter custom text below:", list(sample_inquiries.keys()))
+def update_inquiry_text():
+    st.session_state["inquiry_text"] = scenarios[st.session_state["selected_scenario"]]
 
-if selected_sample and sample_inquiries[selected_sample]:
-    user_input = st.text_area("Client Inquiry:", value=sample_inquiries[selected_sample], height=120)
-else:
-    user_input = st.text_area("Client Inquiry:", placeholder="Paste incoming customer message, email, or WhatsApp text here (e.g. 2BHK in Mumbai, budget ₹75 Lakhs)...", height=120)
+if "inquiry_text" not in st.session_state:
+    st.session_state["inquiry_text"] = scenarios["🔥 Hot Lead (Ready Buyer & Site Visit)"]
 
-# --- Process Inquiry ---
+selected_scenario = st.selectbox(
+    "Choose a sample scenario or enter custom text below:",
+    list(scenarios.keys()),
+    key="selected_scenario",
+    on_change=update_inquiry_text
+)
+
+client_inquiry = st.text_area("Client Inquiry:", key="inquiry_text", height=120)
+
 if st.button("🚀 Analyze Lead"):
-    if not user_input.strip():
-        st.warning("Please enter a message to analyze.")
-    else:
-        result = None
-        
-        if api_key:
-            try:
-                client = genai.Client(api_key=api_key)
-                system_prompt = """
-                You are an AI Lead Triage Assistant for an Indian Property Dealer and Real Estate Broker.
-                Evaluate incoming buyer, seller, or investor inquiries.
-                
-                Scoring Guidelines (in INR - Lakhs & Crores):
-                - Hot (80-100): Clear intent to buy/sell, budget defined (e.g. ₹50L+, ₹1Cr+), pre-approved loan/cash ready, or site visit requested within 7-14 days.
-                - Warm (40-79): Exploring options for 1-3 months out, asking for catalogs or brochures, flexible budget.
-                - Cold (0-39): Extremely low budget, short-term daily rental queries (e.g. under ₹1,000/night), vendor spam, or general non-prospects.
-                """
-                
-                # Resilient execution with retry logic
-                max_retries = 3
-                for attempt in range(max_retries):
-                    try:
-                        response = client.models.generate_content(
-                            model="gemini-2.5-flash",
-                            contents=f"Analyze this inquiry: {user_input}",
-                            config=types.GenerateContentConfig(
-                                system_instruction=system_prompt,
-                                response_mime_type="application/json",
-                                response_schema=LeadEvaluation,
-                                temperature=0.2
-                            )
-                        )
-                        result = LeadEvaluation.model_validate_json(response.text)
-                        break
-                    except Exception as e:
-                        if attempt == max_retries - 1:
-                            st.info("⚡ Cloud API busy. Activated Local Fallback Engine.")
-                            result = local_heuristic_fallback(user_input)
-                        else:
-                            time.sleep(2 ** attempt)
-            except Exception:
-                st.info("⚡ API execution failed. Activated Local Fallback Engine.")
-                result = local_heuristic_fallback(user_input)
-        else:
-            st.info("⚡ Running in Local Fallback Mode (No API Key provided).")
-            result = local_heuristic_fallback(user_input)
-            
-        # --- Display Results ---
-        if result:
-            st.markdown("---")
-            col1, col2 = st.columns([1, 2])
-            
-            with col1:
-                st.metric(label="Lead Score", value=f"{result.lead_score} / 100")
-                if result.category == "Hot":
-                    st.error(f"🔥 Category: {result.category}")
-                elif result.category == "Warm":
-                    st.warning(f"🌤️ Category: {result.category}")
-                else:
-                    st.info(f"❄️ Category: {result.category}")
-                    
-                st.subheader("📋 Recommended Action")
-                st.info(result.dealer_action)
+    with st.spinner("Analyzing inquiry..."):
+        result = analyze_lead_with_gemini(client_inquiry)
 
-            with col2:
-                st.subheader("💡 Key Reasons")
-                for reason in result.key_reasons:
-                    st.write(f"• {reason}")
-                    
-                st.subheader("✉️ Automated Follow-up Draft")
-                st.text_area("Copy and send to client:", value=result.draft_response, height=130)
+    if not api_key:
+        st.info("⚡ Running in Local Fallback Engine (No API Key provided).")
+    elif "api_error" in result:
+        st.warning("⚡ Cloud API busy or key invalid. Activated Local Fallback Engine.")
+
+    st.markdown("---")
+
+    col1, col2 = st.columns([1, 2])
+
+    score = result.get("score", 50)
+    category = result.get("category", "Warm")
+
+    with col1:
+        st.subheader("Lead Score")
+        st.markdown(f"# {score} / 100")
+        
+        if category == "Hot":
+            st.success("🔥 Category: Hot")
+        elif category == "Warm":
+            st.warning("🌤️ Category: Warm")
+        else:
+            st.error("❄️ Category: Cold")
+
+        st.subheader("📋 Recommended Action")
+        st.info(result.get("action", "Follow up with client."))
+
+    with col2:
+        st.subheader("💡 Key Reasons")
+        for reason in result.get("reasons", []):
+            st.markdown(f"• {reason}")
+
+        st.subheader("✉️ Automated Follow-up Draft")
+        st.text_area("Copy and send to client:", value=result.get("draft", ""), height=100)
