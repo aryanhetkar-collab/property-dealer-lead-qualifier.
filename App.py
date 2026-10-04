@@ -21,21 +21,6 @@ st.markdown("""
         border-radius: 8px;
         font-weight: 600;
     }
-    .flat-card {
-        border: 1px solid #e0e0e0;
-        border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 16px;
-        background-color: #ffffff;
-    }
-    .badge {
-        background-color: #eef2ff;
-        color: #4f46e5;
-        padding: 4px 8px;
-        border-radius: 6px;
-        font-size: 12px;
-        font-weight: bold;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -141,7 +126,7 @@ PUNE_DATABASE = [
     }
 ]
 
-# Initialize Session Persistence
+# State Initialization
 if "inquiries_db" not in st.session_state:
     st.session_state["inquiries_db"] = [
         {
@@ -155,19 +140,24 @@ if "inquiries_db" not in st.session_state:
             "score": 92,
             "category": "Hot",
             "intent": "High Intent Buyer — Site Visit Requested",
-            "suggested_reply": "Hello Aniket! Thank you for inquiring about VTP Earth One in Baner. We have scheduled your site visit for Saturday at 11 AM. Our relationship manager will meet you at the site.",
+            "suggested_reply": "Hello Aniket! Thank you for inquiring about VTP Earth One in Baner. We have scheduled your site visit for Saturday at 11 AM.",
             "owner_status": "New Inquiry"
         }
     ]
 
+if "active_flat" not in st.session_state:
+    st.session_state["active_flat"] = None
+
+if "has_searched" not in st.session_state:
+    st.session_state["has_searched"] = False
+
 # ------------------------------------------------------------------------------
-# Backend Microservice: Gemini AI Inquiry Processor
+# AI Microservice
 # ------------------------------------------------------------------------------
 api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
 
 def process_inquiry_with_ai(flat_title: str, user_budget: int, loan_status: str, message: str) -> dict:
     if not api_key:
-        # Local rule-based fallback microservice
         is_high = user_budget >= 60 or loan_status == "Pre-Approved"
         return {
             "score": 88 if is_high else 55,
@@ -222,81 +212,44 @@ tab_buyer, tab_owner = st.tabs([
 # TAB 1: Buyer Search & Application Flow
 # ------------------------------------------------------------------------------
 with tab_buyer:
-    st.subheader("Step 1: Set Your Requirements")
-    
-    with st.container():
-        c1, c2, c3 = st.columns([1.5, 1.5, 1])
+    # IF A FLAT HAS BEEN SELECTED VIA "APPLY NOW", SHOW ONLY THE APPLICATION FORM
+    if st.session_state["active_flat"] is not None:
+        a_flat = st.session_state["active_flat"]
         
-        all_locations = sorted(list(set(item["location"] for item in PUNE_DATABASE)))
-        all_bhk = ["1BHK", "2BHK", "3BHK", "4BHK"]
+        if st.button("⬅️ Back to Listings"):
+            st.session_state["active_flat"] = None
+            st.rerun()
+
+        st.subheader(f"📝 Submit Application for: {a_flat['title']} ({a_flat['location']})")
         
-        with c1:
-            req_areas = st.multiselect("📍 Desired Area(s):", options=all_locations, default=["Baner", "Kharadi"])
-        with c2:
-            req_bhk = st.multiselect("🛏️ Configuration:", options=all_bhk, default=["2BHK", "3BHK"])
-        with c3:
-            max_budget = st.slider("💰 Max Budget (₹ Lakhs):", min_value=30, max_value=250, value=120, step=5)
+        # Display summary card of selected flat
+        with st.container():
+            sc1, sc2 = st.columns([1, 3])
+            with sc1:
+                st.image(a_flat["image"], use_column_width=True)
+            with sc2:
+                st.markdown(f"**Developer:** {a_flat['developer']} | **Config:** {a_flat['bhk']} ({a_flat['carpet_area']})")
+                st.markdown(f"**Price:** ₹{a_flat['price_lakhs']} Lakhs | **Possession:** {a_flat['possession']}")
+                st.caption("Amenities: " + ", ".join(a_flat["amenities"]))
+
+        st.markdown("---")
+        
+        with st.form("inquiry_form"):
+            st.write("#### Enter Your Contact & Inquiry Details")
+            ic1, ic2 = st.columns(2)
+            with ic1:
+                b_name = st.text_input("Full Name *", placeholder="e.g. Ramesh Kulkarni")
+                b_phone = st.text_input("WhatsApp / Contact Number *", placeholder="+91 98220 12345")
+                b_budget = st.number_input("Offered / Target Budget (₹ Lakhs)", value=a_flat["price_lakhs"])
+            with ic2:
+                b_loan = st.selectbox("Funding / Loan Status", ["Pre-Approved Loan", "Loan Needed", "Self-Funded"])
+                b_msg = st.text_area("Site Visit Request & Preferred Time", placeholder="e.g. Looking to visit this Sunday morning at 11 AM.")
             
-        search_clicked = st.button("🔍 Search Available Flats", type="primary", use_container_width=True)
-
-    if "has_searched" not in st.session_state:
-        st.session_state["has_searched"] = False
-
-    if search_clicked:
-        st.session_state["has_searched"] = True
-
-    st.markdown("---")
-
-    # Step 2: Show flat inventory only after search action
-    if st.session_state["has_searched"]:
-        matched_flats = [
-            f for f in PUNE_DATABASE
-            if f["location"] in req_areas
-            and f["bhk"] in req_bhk
-            and f["price_lakhs"] <= max_budget
-        ]
-        
-        st.subheader(f"Step 2: Available Options ({len(matched_flats)} found)")
-        
-        if not matched_flats:
-            st.info("No properties match your current filters. Try increasing your max budget or adding more localities.")
-        else:
-            for flat in matched_flats:
-                col_img, col_info, col_act = st.columns([1, 2, 1])
-                
-                with col_img:
-                    st.image(flat["image"], use_column_width=True)
-                with col_info:
-                    st.markdown(f"### {flat['title']} `{flat['developer']}`")
-                    st.markdown(f"📍 **{flat['location']}** | 🛏️ **{flat['bhk']}** ({flat['carpet_area']})")
-                    st.markdown(f"💵 **Price: ₹{flat['price_lakhs']} Lakhs** | 🔑 **Status: {flat['possession']}**")
-                    st.caption("✨ " + " • ".join(flat["amenities"]))
-                with col_act:
-                    st.write("")
-                    st.write("")
-                    if st.button(f"📝 Apply Now", key=f"btn_apply_{flat['id']}"):
-                        st.session_state["active_flat"] = flat
-
-        # Application Form Drawer
-        if "active_flat" in st.session_state and st.session_state["active_flat"]:
-            a_flat = st.session_state["active_flat"]
-            st.markdown("---")
-            st.success(f"📋 **Submit Official Inquiry for {a_flat['title']} ({a_flat['location']})**")
+            sub_btn = st.form_submit_button("🚀 Submit Inquiry to Owner/Broker", type="primary")
             
-            with st.form("inquiry_form"):
-                ic1, ic2 = st.columns(2)
-                with ic1:
-                    b_name = st.text_input("Full Name", placeholder="e.g. Ramesh Kulkarni")
-                    b_phone = st.text_input("WhatsApp / Contact Number", placeholder="+91 98220 12345")
-                    b_budget = st.number_input("Offered / Target Budget (₹ Lakhs)", value=a_flat["price_lakhs"])
-                with ic2:
-                    b_loan = st.selectbox("Funding / Loan Status", ["Pre-Approved Loan", "Loan Needed", "Self-Funded"])
-                    b_msg = st.text_area("Site Visit Request & Notes", placeholder="e.g. Looking to visit this Sunday morning.")
-                
-                sub_btn = st.form_submit_button("🚀 Submit Inquiry to Owner/Broker")
-                
-                if sub_btn:
-                    if b_name and b_phone:
+            if sub_btn:
+                if b_name and b_phone:
+                    with st.spinner("Processing inquiry with AI..."):
                         ai_eval = process_inquiry_with_ai(a_flat["title"], b_budget, b_loan, b_msg)
                         
                         new_inquiry = {
@@ -316,12 +269,66 @@ with tab_buyer:
                         
                         st.session_state["inquiries_db"].insert(0, new_inquiry)
                         st.session_state["active_flat"] = None
-                        st.balloons()
-                        st.success("✅ Inquiry submitted successfully! The property owner will review and respond in Tab 2.")
-                    else:
-                        st.error("Please fill in your Name and Phone Number.")
+                    
+                    st.balloons()
+                    st.success("✅ Inquiry submitted successfully! Switch to **Tab 2 (Owner Inbox)** to view and respond to this lead.")
+                else:
+                    st.error("Please enter both your Full Name and Contact Number.")
+
+    # OTHERWISE SHOW THE SEARCH & FILTER LISTINGS
     else:
-        st.info("👆 Please select your area and budget preferences above and click **Search Available Flats**.")
+        st.subheader("Step 1: Set Your Requirements")
+        
+        col1, col2, col3 = st.columns([1.5, 1.5, 1])
+        all_locations = sorted(list(set(item["location"] for item in PUNE_DATABASE)))
+        all_bhk = ["1BHK", "2BHK", "3BHK", "4BHK"]
+        
+        with col1:
+            req_areas = st.multiselect("📍 Desired Area(s):", options=all_locations, default=["Baner", "Kharadi", "Wakad"])
+        with col2:
+            req_bhk = st.multiselect("🛏️ Configuration:", options=all_bhk, default=["2BHK", "3BHK"])
+        with col3:
+            max_budget = st.slider("💰 Max Budget (₹ Lakhs):", min_value=30, max_value=250, value=120, step=5)
+            
+        if st.button("🔍 Search Available Flats", type="primary", use_container_width=True):
+            st.session_state["has_searched"] = True
+
+        st.markdown("---")
+
+        if st.session_state["has_searched"]:
+            matched_flats = [
+                f for f in PUNE_DATABASE
+                if f["location"] in req_areas
+                and f["bhk"] in req_bhk
+                and f["price_lakhs"] <= max_budget
+            ]
+            
+            st.subheader(f"Step 2: Available Options ({len(matched_flats)} found)")
+            
+            if not matched_flats:
+                st.info("No properties match your current filters. Try increasing your budget or adding more areas.")
+            else:
+                for flat in matched_flats:
+                    with st.container():
+                        col_img, col_info, col_act = st.columns([1, 2, 1])
+                        
+                        with col_img:
+                            st.image(flat["image"], use_column_width=True)
+                        with col_info:
+                            st.markdown(f"### {flat['title']} — `{flat['developer']}`")
+                            st.markdown(f"📍 **{flat['location']}** | 🛏️ **{flat['bhk']}** ({flat['carpet_area']})")
+                            st.markdown(f"💵 **Price: ₹{flat['price_lakhs']} Lakhs** | 🔑 **Status: {flat['possession']}**")
+                            st.caption("✨ " + " • ".join(flat["amenities"]))
+                        with col_act:
+                            st.write("")
+                            st.write("")
+                            # Clicking this button sets active_flat and immediately re-renders to the form!
+                            if st.button(f"📝 Apply Now", key=f"apply_{flat['id']}"):
+                                st.session_state["active_flat"] = flat
+                                st.rerun()
+                        st.markdown("---")
+        else:
+            st.info("👆 Adjust your location/budget preferences above and click **Search Available Flats** to see listings.")
 
 # ------------------------------------------------------------------------------
 # TAB 2: Property Owner / Broker Response Inbox
@@ -355,7 +362,6 @@ with tab_owner:
                     status_opts = ["New Inquiry", "Contacted / In Discussion", "Site Visit Scheduled", "Deal Closed"]
                     inq["owner_status"] = st.selectbox("Update Deal Status:", status_opts, index=status_opts.index(inq["owner_status"]), key=f"status_sel_{inq['id']}")
                     
-                    # Direct WhatsApp link for owner response
                     clean_phone = inq["phone"].replace("+", "").replace(" ", "").replace("-", "")
                     encoded_msg = urllib.parse.quote(reply_text)
                     wa_link = f"https://wa.me/{clean_phone}?text={encoded_msg}"
