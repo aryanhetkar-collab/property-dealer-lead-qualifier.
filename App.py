@@ -1,6 +1,7 @@
 import os
 import json
 import urllib.request
+import urllib.parse
 import urllib.error
 import streamlit as st
 
@@ -43,32 +44,50 @@ api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
 
 def evaluate_lead_locally(text: str) -> dict:
     text_lower = text.lower()
-    cold_keywords = ["2 days", "500", "cheap", "short term", "room on rent", "hostel", "pg", "rent"]
-    hot_keywords = ["buy", "3bhk", "2bhk", "crore", "lakhs", "site visit", "pre-approved", "loan", "ready buyer"]
+    
+    # Cold triggers (Short stays, cheap, rental rooms, hostels, PG, low budget)
+    cold_keywords = ["rent", "pg", "hostel", "cheap", "2 days", "daily", "500", "short term", "room on rent", "1 day", "flatmate"]
+    
+    # Hot triggers (High purchase/investment intent, specific buying budget, site visit)
+    hot_keywords = ["buy", "purchase", "invest", "crore", "lakhs", "pre-approved", "loan", "site visit", "ready buyer", "booking", "3bhk", "2bhk"]
 
-    if any(kw in text_lower for kw in cold_keywords) and not any(kw in text_lower for kw in ["buy", "crore", "lakhs"]):
+    # 1. Cold Check (If rental/short-stay keywords are present and NO purchase keywords exist)
+    if any(kw in text_lower for kw in cold_keywords) and not any(kw in text_lower for kw in ["buy", "purchase", "invest", "crore"]):
         return {
             "score": 20,
             "category": "Cold",
-            "reasons": ["Short-term rental/micro-budget inquiry", "Not suitable for brokerage pipeline"],
-            "action": "Redirect to short-stay platforms.",
-            "draft": "Hello! Thanks for reaching out. We focus on long-term sales and leases. For short daily stays, please try hotel booking apps!"
+            "reasons": [
+                "Rental or short-term stay request detected",
+                "Unsuited for high-value property sales pipeline"
+            ],
+            "action": "Politely decline or redirect to rental/PG platforms.",
+            "draft": "Hello! Thank you for reaching out. We specialize in property sales and long-term purchases. For short-term room rentals or PGs, we recommend checking dedicated rental apps!"
         }
+    
+    # 2. Hot Check (If explicit buying/investment intent is present)
     elif any(kw in text_lower for kw in hot_keywords):
         return {
             "score": 90,
             "category": "Hot",
-            "reasons": ["High purchase intent", "Ready budget & loan pre-approved"],
-            "action": "Call immediately and arrange site visit.",
-            "draft": "Hello! Thanks for reaching out. I'd love to help you find your ideal property and arrange a site visit this weekend."
+            "reasons": [
+                "High purchase/investment intent detected",
+                "Buying budget or site visit request present"
+            ],
+            "action": "Schedule immediate phone call & book site visit within 2 hours.",
+            "draft": "Hello! Thank you for reaching out. I'd be delighted to assist you with your property purchase and schedule a site visit this weekend. When is a good time to connect?"
         }
+    
+    # 3. Warm Check (General inquiries, missing specific buying/rental commitment)
     else:
         return {
             "score": 55,
             "category": "Warm",
-            "reasons": ["General inquiry requiring budget/timeline clarification"],
-            "action": "Send catalog on WhatsApp and follow up in 24 hrs.",
-            "draft": "Hello! Thanks for reaching out. I've shared our property catalog. Let me know your preferred location to share tailored listings!"
+            "reasons": [
+                "General property inquiry detected",
+                "Requires further clarification on budget and purchase timeline"
+            ],
+            "action": "Send digital property catalog on WhatsApp and follow up in 24 hours.",
+            "draft": "Hello! Thanks for reaching out. I've noted your inquiry. Could you share your preferred location and target budget so I can send tailored listings?"
         }
 
 def analyze_lead(inquiry: str) -> dict:
@@ -157,7 +176,6 @@ with tab2:
     
     for idx, lead in enumerate(st.session_state["lead_db"]):
         cat = lead["category"]
-        color = "red" if cat == "Hot" else ("orange" if cat == "Warm" else "gray")
         
         with st.expander(f"[{cat.upper()} LEAD - {lead['score']}/100] {lead['name']} ({lead['phone']})", expanded=(idx==0)):
             c1, c2 = st.columns([1, 1])
@@ -170,5 +188,14 @@ with tab2:
                     st.markdown(f"- {r}")
             with c2:
                 st.markdown("**Automated WhatsApp Reply Draft:**")
-                st.text_area("Ready to send:", value=lead["draft"], height=100, key=f"draft_{idx}")
-                st.button(f"📲 Send Auto-Reply to {lead['name']}", key=f"btn_{idx}")
+                draft_msg = st.text_area("Ready to send:", value=lead["draft"], height=100, key=f"draft_{idx}")
+                
+                # Format phone number for WhatsApp URL (clean non-digits)
+                raw_phone = lead["phone"].replace("+", "").replace(" ", "").replace("-", "")
+                if not raw_phone.isdigit():
+                    raw_phone = "919876543210" # Default fallback number for demo
+                
+                encoded_msg = urllib.parse.quote(draft_msg)
+                whatsapp_url = f"https://wa.me/{raw_phone}?text={encoded_msg}"
+                
+                st.link_button(f"📲 Send Auto-Reply to {lead['name']} via WhatsApp", whatsapp_url)
